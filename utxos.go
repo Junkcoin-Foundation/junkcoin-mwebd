@@ -3,7 +3,7 @@ package mwebd
 import (
 	"github.com/ltcmweb/ltcd/ltcutil/mweb"
 	"github.com/ltcmweb/ltcd/ltcutil/mweb/mw"
-	"github.com/ltcmweb/mwebd/proto"
+	"github.com/JunkoinFoundation/junkcoin-mwebd/proto"
 )
 
 type utxoStreamer struct {

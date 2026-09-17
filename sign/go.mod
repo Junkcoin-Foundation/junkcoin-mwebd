@@ -1,4 +1,4 @@
-module github.com/ltcmweb/mwebd/sign
+module github.com/JunkoinFoundation/junkcoin-mwebd/sign
 
 go 1.24.0
 

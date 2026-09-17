@@ -24,9 +24,9 @@ import (
 	"github.com/ltcmweb/ltcd/ltcutil/mweb/mw"
 	"github.com/ltcmweb/ltcd/txscript"
 	"github.com/ltcmweb/ltcd/wire"
-	"github.com/ltcmweb/mwebd/ledger"
-	"github.com/ltcmweb/mwebd/proto"
-	"github.com/ltcmweb/mwebd/sign"
+	"github.com/JunkoinFoundation/junkcoin-mwebd/ledger"
+	"github.com/JunkoinFoundation/junkcoin-mwebd/proto"
+	"github.com/JunkoinFoundation/junkcoin-mwebd/sign"
 	"github.com/ltcmweb/neutrino"
 	"github.com/ltcmweb/neutrino/mwebdb"
 	"github.com/ltcsuite/ltcwallet/walletdb"
@@ -78,14 +78,16 @@ func NewServer2(args *ServerArgs) (s *Server, err error) {
 	cfg := neutrino.Config{
 		DataDir:     args.DataDir,
 		Database:    s.db,
-		ChainParams: chaincfg.MainNetParams,
+		ChainParams: GetJunkMainNetParams(),
 	}
 
 	switch args.Chain {
 	case "testnet":
-		cfg.ChainParams = chaincfg.TestNet4Params
+		cfg.ChainParams = GetJunkTestNet4Params()
 	case "regtest":
 		cfg.ChainParams = chaincfg.RegressionNetParams
+	default:
+		cfg.ChainParams = GetJunkMainNetParams()
 	}
 
 	if args.PeerAddr != "" {
@@ -343,7 +345,7 @@ func Addresses(scanSecret, spendPubKey []byte, i, j int32) string {
 		SpendPub: spendPubKey,
 		From:     uint32(i),
 		To:       uint32(j),
-	}, &chaincfg.MainNetParams)
+	}, &junkMainNet)
 	return strings.Join(resp.Address, ",")
 }
 

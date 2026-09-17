@@ -13,8 +13,8 @@ import (
 	"github.com/ltcmweb/ltcd/ltcutil/psbt"
 	"github.com/ltcmweb/ltcd/txscript"
 	"github.com/ltcmweb/ltcd/wire"
-	"github.com/ltcmweb/mwebd/proto"
-	"github.com/ltcmweb/mwebd/sign"
+	"github.com/JunkoinFoundation/junkcoin-mwebd/proto"
+	"github.com/JunkoinFoundation/junkcoin-mwebd/sign"
 )
 
 func (s *Server) PsbtCreate(ctx context.Context,
@@ -34,7 +34,7 @@ func (s *Server) PsbtCreate(ctx context.Context,
 	}
 	for i, txIn := range tx.TxIn {
 		txOut := req.WitnessUtxo[i]
-		p.Inputs = append(p.Inputs, psbt.PInput{
+		p.Inputs = append(p.Inputs, &psbt.PInput{
 			WitnessUtxo:  wire.NewTxOut(txOut.Value, txOut.PkScript),
 			PrevoutHash:  &txIn.PreviousOutPoint.Hash,
 			PrevoutIndex: &txIn.PreviousOutPoint.Index,
@@ -42,7 +42,7 @@ func (s *Server) PsbtCreate(ctx context.Context,
 		})
 	}
 	for _, txOut := range tx.TxOut {
-		p.Outputs = append(p.Outputs, psbt.POutput{
+		p.Outputs = append(p.Outputs, &psbt.POutput{
 			Amount:   ltcutil.Amount(txOut.Value),
 			PKScript: txOut.PkScript,
 		})
@@ -80,7 +80,7 @@ func (s *Server) PsbtAddInput(ctx context.Context,
 
 	amount := ltcutil.Amount(coin.Value)
 
-	p.Inputs = append(p.Inputs, psbt.PInput{
+	p.Inputs = append(p.Inputs, &psbt.PInput{
 		MwebOutputId:          (*chainhash.Hash)(outputId),
 		MwebAddressIndex:      &req.AddressIndex,
 		MwebAmount:            &amount,
@@ -107,7 +107,7 @@ func (s *Server) getKernelIndex(p *psbt.Packet) (index int) {
 		index++
 	}
 	if index == len(p.Kernels) {
-		pKernel := psbt.PKernel{}
+		pKernel := &psbt.PKernel{}
 		if p.FallbackLocktime != nil &&
 			*p.FallbackLocktime > 0 &&
 			*p.FallbackLocktime < 500_000_000 {
@@ -132,9 +132,9 @@ func (s *Server) PsbtAddRecipient(ctx context.Context,
 		return nil, err
 	}
 
-	kernel := &p.Kernels[s.getKernelIndex(p)]
+	kernel := p.Kernels[s.getKernelIndex(p)]
 	if mwebAddr, ok := addr.(*ltcutil.AddressMweb); ok {
-		p.Outputs = append(p.Outputs, psbt.POutput{
+		p.Outputs = append(p.Outputs, &psbt.POutput{
 			Amount:         ltcutil.Amount(req.Recipient.Value),
 			StealthAddress: mwebAddr.StealthAddress(),
 		})
@@ -178,7 +178,7 @@ func (s *Server) adjustKernel(p *psbt.Packet, feeRatePerKb uint64) {
 	var (
 		inputs, outputs ltcutil.Amount
 
-		kernel = &p.Kernels[s.getKernelIndex(p)]
+		kernel = p.Kernels[s.getKernelIndex(p)]
 		fee    = ltcutil.Amount(s.calcFee(p, feeRatePerKb))
 	)
 	for _, pInput := range p.Inputs {
@@ -220,7 +220,7 @@ func (s *Server) adjustKernel(p *psbt.Packet, feeRatePerKb uint64) {
 func (s *Server) PsbtGetRecipients(ctx context.Context,
 	req *proto.PsbtGetRecipientsRequest) (*proto.PsbtGetRecipientsResponse, error) {
 
-	resp, err := sign.PsbtGetRecipients(&sign.Psbt{PsbtB64: req.PsbtB64}, &s.cp)
+	resp, err := sign.PsbtGetRecipients(&sign.Psbt{Psbt: []byte(req.PsbtB64)}, &s.cp)
 	if err != nil {
 		return nil, err
 	}
@@ -242,28 +242,36 @@ func (s *Server) PsbtSign(ctx context.Context,
 	req *proto.PsbtSignRequest) (*proto.PsbtResponse, error) {
 
 	resp, err := sign.PsbtSign(&sign.PsbtSignRequest{
-		PsbtB64: req.PsbtB64,
-		Scan:    req.ScanSecret,
-		Spend:   req.SpendSecret,
+		Psbt: []byte(req.PsbtB64),
+		Scan: req.ScanSecret,
+		Spend: req.SpendSecret,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &proto.PsbtResponse{PsbtB64: resp.PsbtB64}, nil
+	b64, err := resp.B64Encode()
+	if err != nil {
+		return nil, err
+	}
+	return &proto.PsbtResponse{PsbtB64: b64}, nil
 }
 
 func (s *Server) PsbtSignNonMweb(ctx context.Context,
 	req *proto.PsbtSignNonMwebRequest) (*proto.PsbtResponse, error) {
 
 	resp, err := sign.PsbtSignPubKeyHash(&sign.PsbtSignPubKeyHashRequest{
-		PsbtB64: req.PsbtB64,
-		PrivKey: req.PrivKey,
-		Index:   req.Index,
+		Psbt: []byte(req.PsbtB64),
+		Key:  req.PrivKey,
+		Index: req.Index,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &proto.PsbtResponse{PsbtB64: resp.PsbtB64}, nil
+	b64, err := resp.B64Encode()
+	if err != nil {
+		return nil, err
+	}
+	return &proto.PsbtResponse{PsbtB64: b64}, nil
 }
 
 func (s *Server) PsbtExtract(ctx context.Context,

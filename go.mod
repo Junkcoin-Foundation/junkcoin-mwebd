@@ -1,16 +1,16 @@
-module github.com/ltcmweb/mwebd
+module github.com/JunkoinFoundation/junkcoin-mwebd
 
 go 1.24.0
 
 require (
+	github.com/JunkoinFoundation/junkcoin-mwebd/sign v0.1.0
 	github.com/btcsuite/btclog v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/ethereum/go-ethereum v1.14.8
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/ltcmweb/coinswapd v0.1.0
-	github.com/ltcmweb/ltcd v0.25.12
+	github.com/ltcmweb/ltcd v0.25.14
 	github.com/ltcmweb/ltcd/chaincfg/chainhash v1.0.3
-	github.com/ltcmweb/mwebd/sign v0.1.0
 	github.com/ltcmweb/neutrino v0.17.4
 	github.com/ltcsuite/ltcwallet/walletdb v1.3.5
 	golang.org/x/net v0.49.0
@@ -18,6 +18,8 @@ require (
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
+
+replace github.com/JunkoinFoundation/junkcoin-mwebd/sign v0.1.0 => ./sign
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -37,7 +39,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/ltcmweb/ltcd/btcec/v2 v2.3.3 // indirect
 	github.com/ltcmweb/neutrino/cache v1.1.0 // indirect
-	github.com/ltcmweb/secp256k1 v0.1.1 // indirect
+	github.com/ltcmweb/secp256k1 v0.1.6 // indirect
 	github.com/ltcsuite/lnd/queue v1.1.0 // indirect
 	github.com/ltcsuite/lnd/ticker v1.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/ltcmweb/mwebd"
+	"github.com/JunkoinFoundation/junkcoin-mwebd"
 )
 
 var (
