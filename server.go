@@ -15,6 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/JunkoinFoundation/junkcoin-mwebd/ledger"
+	"github.com/JunkoinFoundation/junkcoin-mwebd/proto"
+	"github.com/JunkoinFoundation/junkcoin-mwebd/sign"
 	"github.com/btcsuite/btclog"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/ltcmweb/ltcd/chaincfg"
@@ -24,9 +27,6 @@ import (
 	"github.com/ltcmweb/ltcd/ltcutil/mweb/mw"
 	"github.com/ltcmweb/ltcd/txscript"
 	"github.com/ltcmweb/ltcd/wire"
-	"github.com/JunkoinFoundation/junkcoin-mwebd/ledger"
-	"github.com/JunkoinFoundation/junkcoin-mwebd/proto"
-	"github.com/JunkoinFoundation/junkcoin-mwebd/sign"
 	"github.com/ltcmweb/neutrino"
 	"github.com/ltcmweb/neutrino/mwebdb"
 	"github.com/ltcsuite/ltcwallet/walletdb"
@@ -116,6 +116,15 @@ func NewServer2(args *ServerArgs) (s *Server, err error) {
 	}).Logger("")
 	log.SetLevel(btclog.LevelDebug)
 	neutrino.UseLogger(log)
+
+	// Junkcoin Core (net_processing) disconnects inbound peers whose
+	// subver is neither "JKC:3.1.1" nor "JunkcoinCore:4.*" (it is meant
+	// to reject Litecoin peers). The default neutrino user agent
+	// (/ltcwire:x/neutrino:y/) got our header/broadcast connections
+	// closed right after the version message ("no peers replied to inv
+	// message"). Identify as JunkcoinCore so the testnet/mainnet nodes
+	// accept the light client; match the running node's major version.
+	neutrino.UserAgentName = "JunkcoinCore:4.0.3.1"
 
 	s.cs, err = neutrino.NewChainService(cfg)
 	if err != nil {
@@ -366,6 +375,11 @@ func (s *Server) Spent(ctx context.Context,
 }
 
 func (s *Server) fetchCoin(outputId chainhash.Hash) (*wire.MwebOutput, error) {
+	if s.cs == nil {
+		// Bare server (no chain state): treat every coin as unknown so the
+		// caller classifies the input as transparent (peg-in funding).
+		return nil, mwebdb.ErrCoinNotFound
+	}
 	output, err := s.cs.MwebCoinDB.FetchCoin(&outputId)
 	if err == mwebdb.ErrCoinNotFound {
 		slices.Reverse(outputId[:])
