@@ -20,7 +20,7 @@ func init() {
 	merkleRoot, _ := chainhash.NewHashFromStr("3de124b0274307911fe12550e96bf76cb92c12835db6cb19f82658b8aca1dbc8")
 
 	mainPowLimit := new(big.Int)
-	mainPowLimit.SetString("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
+	mainPowLimit.SetString("00000ffff0000000000000000000000000000000000000000000000000000000", 16)
 
 	genesisBlock := wire.MsgBlock{
 		Header: wire.BlockHeader{

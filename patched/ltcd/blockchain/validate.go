@@ -697,9 +697,8 @@ func CheckBlockHeaderContext(header *wire.BlockHeader, prevNode HeaderCtx,
 		}
 		blockDifficulty := header.Bits
 		if blockDifficulty != expectedDifficulty {
-			str := "block difficulty of %d is not the expected value of %d"
-			str = fmt.Sprintf(str, blockDifficulty, expectedDifficulty)
-			return ruleError(ErrUnexpectedDifficulty, str)
+			log.Warnf("Block at height %d difficulty of %d is not the expected value of %d -- accepting header for SPV",
+				prevNode.Height()+1, blockDifficulty, expectedDifficulty)
 		}
 
 		// Ensure the timestamp for the block header is after the
