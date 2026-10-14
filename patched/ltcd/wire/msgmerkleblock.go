@@ -54,6 +54,18 @@ func (msg *MsgMerkleBlock) BtcDecode(r io.Reader, pver uint32, enc MessageEncodi
 		return err
 	}
 
+	// Junkcoin serializes the merge-mining (AuxPoW) proof right after the
+	// fixed 80-byte header when the version carries the AuxPoW flag, also
+	// inside merkleblock / mwebheader messages. Without consuming it the
+	// stream is misaligned and the mweb header sync never completes.
+	if msg.Header.Version&VersionAuxPowFlag != 0 {
+		proof, err := readAuxPow(r, pver)
+		if err != nil {
+			return err
+		}
+		msg.Header.AuxPow = proof
+	}
+
 	err = readElement(r, &msg.Transactions)
 	if err != nil {
 		return err
