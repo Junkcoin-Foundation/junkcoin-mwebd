@@ -19,6 +19,7 @@ import (
 	"github.com/ltcmweb/ltcd/ltcutil/mweb/mw"
 	"github.com/ltcmweb/ltcd/txscript"
 	"github.com/ltcmweb/ltcd/wire"
+	"github.com/ltcsuite/ltcwallet/walletdb"
 )
 
 // Mobile (gomobile) friendly wrappers.
@@ -151,8 +152,48 @@ func (s *Server) UtxosOnceJSON(scanSecret []byte, fromHeight int64) (string, err
 		}
 	}
 
+	// Also include unconfirmed outputs from local mempool and track spent inputs
+	spentMap := make(map[string]bool)
+	var mempoolUtxos []*wire.MwebNetUtxo
+
+	_ = walletdb.View(s.db, func(tx walletdb.ReadTx) error {
+		spentBucket := tx.ReadBucket([]byte("mweb-spent-mempool"))
+		if spentBucket != nil {
+			_ = spentBucket.ForEach(func(k, v []byte) error {
+				spentMap[hex.EncodeToString(k)] = true
+				return nil
+			})
+		}
+		mempoolBucket := tx.ReadBucket([]byte("mweb-mempool"))
+		if mempoolBucket != nil {
+			_ = mempoolBucket.ForEach(func(k, v []byte) error {
+				output := &wire.MwebOutput{}
+				if err := output.Deserialize(bytes.NewReader(v)); err == nil {
+					var h chainhash.Hash
+					copy(h[:], k)
+					mempoolUtxos = append(mempoolUtxos, &wire.MwebNetUtxo{
+						Output:   output,
+						OutputId: &h,
+						Height:   0,
+					})
+				}
+				return nil
+			})
+		}
+		return nil
+	})
+
+	if len(mempoolUtxos) > 0 {
+		found = append(found, s.filterUtxos(scan, mempoolUtxos)...)
+	}
+
+	seen := make(map[string]bool)
 	out := make([]mobileUtxo, 0, len(found))
 	for _, u := range found {
+		if spentMap[u.OutputId] || seen[u.OutputId] {
+			continue
+		}
+		seen[u.OutputId] = true
 		out = append(out, mobileUtxo{
 			Height:    u.Height,
 			Value:     u.Value,
@@ -203,6 +244,17 @@ func (s *Server) BroadcastRaw(rawTx []byte) (string, error) {
 		return "", err
 	}
 	return resp.Txid, nil
+}
+
+// AddMempoolTx stores an unconfirmed MWEB transaction into the local mempool cache
+// so that UtxosOnceJSON immediately reflects its outputs and spent inputs.
+func (s *Server) AddMempoolTx(rawTx []byte) error {
+	var tx wire.MsgTx
+	if err := tx.Deserialize(bytes.NewReader(rawTx)); err != nil {
+		return err
+	}
+	s.recordMempoolTx(&tx)
+	return nil
 }
 
 // SpentOnce takes comma separated output ids and returns (as JSON) those that

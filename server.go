@@ -209,12 +209,42 @@ func (s *Server) Status(context.Context,
 	}, nil
 }
 
+func (s *Server) recordMempoolTx(tx *wire.MsgTx) {
+	if tx.Mweb == nil {
+		return
+	}
+	_ = walletdb.Update(s.db, func(wtx walletdb.ReadWriteTx) error {
+		mempoolBucket, err := wtx.CreateTopLevelBucket([]byte("mweb-mempool"))
+		if err != nil {
+			return err
+		}
+		spentBucket, err := wtx.CreateTopLevelBucket([]byte("mweb-spent-mempool"))
+		if err != nil {
+			return err
+		}
+		for _, output := range tx.Mweb.TxBody.Outputs {
+			var buf bytes.Buffer
+			if err := output.Serialize(&buf); err == nil {
+				outputId := output.Hash()
+				_ = mempoolBucket.Put(outputId[:], buf.Bytes())
+			}
+		}
+		for _, in := range tx.Mweb.TxBody.Inputs {
+			_ = spentBucket.Put(in.OutputId[:], []byte{1})
+			_ = mempoolBucket.Delete(in.OutputId[:])
+		}
+		return nil
+	})
+}
+
 func (s *Server) utxoHandler(lfs *mweb.Leafset, utxos []*wire.MwebNetUtxo) {
 	walletdb.Update(s.db, func(tx walletdb.ReadWriteTx) error {
 		bucket, err := tx.CreateTopLevelBucket([]byte("mweb-mempool"))
 		if err != nil {
 			return err
 		}
+		spentBucket, _ := tx.CreateTopLevelBucket([]byte("mweb-spent-mempool"))
+
 		for _, utxo := range utxos {
 			if utxo.Height == 0 {
 				var buf bytes.Buffer
@@ -224,9 +254,17 @@ func (s *Server) utxoHandler(lfs *mweb.Leafset, utxos []*wire.MwebNetUtxo) {
 				if err = bucket.Put(utxo.OutputId[:], buf.Bytes()); err != nil {
 					return err
 				}
-			} else if err = bucket.Delete(utxo.OutputId[:]); err != nil {
-				return err
+			} else {
+				if err = bucket.Delete(utxo.OutputId[:]); err != nil {
+					return err
+				}
+				if spentBucket != nil {
+					_ = spentBucket.Delete(utxo.OutputId[:])
+				}
 			}
+		}
+		if lfs != nil && spentBucket != nil {
+			_ = tx.DeleteTopLevelBucket([]byte("mweb-spent-mempool"))
 		}
 		return nil
 	})
@@ -537,7 +575,7 @@ func (s *Server) Create(ctx context.Context,
 	}
 
 	tx.TxIn = txIns
-	tx.TxOut = nil
+	tx.TxOut = pegouts
 	if pegin > 0 {
 		tx.AddTxOut(mweb.NewPegin(pegin, tx.Mweb.TxBody.Kernels[0].Hash()))
 	}
@@ -577,11 +615,9 @@ func (s *Server) Broadcast(ctx context.Context,
 	if err := tx.Deserialize(bytes.NewReader(req.RawTx)); err != nil {
 		return nil, err
 	}
-	if err := s.cs.SendTransaction(&tx); err != nil {
-		return nil, err
-	}
 
 	if tx.Mweb != nil {
+		s.recordMempoolTx(&tx)
 		var utxos []*wire.MwebNetUtxo
 		for _, output := range tx.Mweb.TxBody.Outputs {
 			utxos = append(utxos, &wire.MwebNetUtxo{
@@ -590,6 +626,10 @@ func (s *Server) Broadcast(ctx context.Context,
 			})
 		}
 		go s.utxoHandler(nil, utxos)
+	}
+
+	if err := s.cs.SendTransaction(&tx); err != nil {
+		return nil, err
 	}
 
 	return &proto.BroadcastResponse{Txid: tx.TxHash().String()}, nil
