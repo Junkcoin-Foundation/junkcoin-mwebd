@@ -22,6 +22,9 @@ func init() {
 	mainPowLimit := new(big.Int)
 	mainPowLimit.SetString("00000ffff0000000000000000000000000000000000000000000000000000000", 16)
 
+	testPowLimit := new(big.Int)
+	testPowLimit.SetString("00000fffff000000000000000000000000000000000000000000000000000000", 16)
+
 	genesisBlock := wire.MsgBlock{
 		Header: wire.BlockHeader{
 			Version:    1,
@@ -126,7 +129,7 @@ func init() {
 		},
 		GenesisBlock: &genesisBlock,
 		GenesisHash:  genesisHash,
-		PowLimit:     mainPowLimit,
+		PowLimit:     testPowLimit,
 		// junkcoind computes nProofOfWorkLimit as GetCompact(powLimit) =
 		// 0x1e0fffff; testnet min-difficulty blocks carry this value (block 1
 		// and 2 observed), so the sanity check must expect it, not the
