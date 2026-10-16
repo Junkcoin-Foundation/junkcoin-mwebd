@@ -575,9 +575,14 @@ func (s *Server) Create(ctx context.Context,
 	}
 
 	tx.TxIn = txIns
-	tx.TxOut = pegouts
 	if pegin > 0 {
+		tx.TxOut = pegouts
 		tx.AddTxOut(mweb.NewPegin(pegin, tx.Mweb.TxBody.Kernels[0].Hash()))
+	} else {
+		// MWEB-only transactions (peg-outs and mweb-to-mweb sends) must not
+		// carry transparent outputs: the node expects vin=0/vout=0, and the
+		// peg-out recipients are taken from the kernel's PegOutCoins.
+		tx.TxOut = nil
 	}
 
 	var buf bytes.Buffer
@@ -616,6 +621,15 @@ func (s *Server) Broadcast(ctx context.Context,
 		return nil, err
 	}
 
+	if err := s.cs.SendTransaction(&tx); err != nil {
+		return nil, err
+	}
+
+	// Record the transaction in the local mempool cache only after the node
+	// accepted it for relay. Recording before the send left the outputs of a
+	// failed broadcast in `mweb-mempool` forever: the wallet then saw a
+	// phantom balance and coin selection could pick outputs that never
+	// existed on chain, making every subsequent spend fail.
 	if tx.Mweb != nil {
 		s.recordMempoolTx(&tx)
 		var utxos []*wire.MwebNetUtxo
@@ -626,10 +640,6 @@ func (s *Server) Broadcast(ctx context.Context,
 			})
 		}
 		go s.utxoHandler(nil, utxos)
-	}
-
-	if err := s.cs.SendTransaction(&tx); err != nil {
-		return nil, err
 	}
 
 	return &proto.BroadcastResponse{Txid: tx.TxHash().String()}, nil
